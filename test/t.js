@@ -229,11 +229,43 @@
 
   // BEGIN testSubquery
   testSubquery = function ( test_obj ) {
-    var subq_db, records, tests, i, actualData, expectedData, msg;
+    var subq_db, records, runTests, qtests, sqtests, i, actualData,
+      expectedData, msg;
 
     subq_db = TAFFY( cfgMap.subq_list );
     records = subq_db().get();
-    tests = [
+
+    runTests = function ( tests ) {
+      for ( i = 0; i < tests.length; i++ ) {
+        actualData = subq_db( tests[i].query ).get();
+        expectedData = tests[i].expected;
+        msg = JSON.stringify( actualData ) + '==='
+          + JSON.stringify( expectedData );
+
+        test_obj.deepEqual( actualData, expectedData, msg );
+      }
+    };
+
+    qtests = [
+      {
+        query: { id: { '!is': 2 }, nested: { a: 1 } },
+        expected: [records[0]]
+      },
+      {
+        query: { nested: { a: 1, b: 11, c: 111 } },
+        expected: [records[1]]
+      },
+      {
+        query: { nested: { a: {lt: 8} } },
+        expected: []
+      },
+      {
+        query: { id: 11, root: { branch1: { leaf1: 2, leaf2: 3 } } },
+        expected: []
+      }
+    ];
+
+    sqtests = [
       {
         query: { id: { '!is': 2 }, nested: { a: 1 } },
         expected: [records[0]]
@@ -317,16 +349,26 @@
       },
     ];
 
-    test_obj.expect( tests.length );
+    test_obj.expect( qtests.length + sqtests.length + 2 );
 
-    for ( i = 0; i < tests.length; i++ ) {
-      actualData = subq_db( tests[i].query ).get();
-      expectedData = tests[i].expected;
-      msg = JSON.stringify( actualData ) + '==='
-        + JSON.stringify( expectedData );
+    runTests(qtests);
+    subq_db.settings({ subqueries: true });
+    runTests(sqtests);
 
-      test_obj.deepEqual( actualData, tests[i].expected, msg );
-    }
+    actualData = subq_db( { root: { branch1: { leaf1: [1, 2] } } },
+      { root: { branch1: {leaf2: [2, 23] } } } ).get();
+    expectedData = [records[8], records[9]];
+    msg = JSON.stringify( actualData ) + '==='
+      + JSON.stringify( expectedData );
+    test_obj.deepEqual( actualData, expectedData, msg );
+
+    actualData = subq_db().filter( {
+      un: { even: { nest: { ing: { gt: 9 } }, x: [9, 20] } }
+    } ).get();
+    expectedData = [records[3], records[4]];
+    msg = JSON.stringify( actualData ) + '==='
+      + JSON.stringify( expectedData );
+    test_obj.deepEqual( actualData, expectedData, msg );
 
     test_obj.done();
   };
