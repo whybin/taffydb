@@ -266,10 +266,10 @@ var TAFFY, exports, T;
       return s ? o : undefined;
     };
 
-    returnFilter = function ( f ) {
+    returnFilter = function ( f, sq ) {
       // ****************************************
       // *
-      // * Takes: filter object
+      // * Takes: filter object and bool indicating whether to filter subqueries
       // * Returns: a filter function
       // * Purpose: Take a filter object and return a function that can be used to compare
       // * a TaffyDB record to see if the record matches a query
@@ -283,7 +283,7 @@ var TAFFY, exports, T;
 
         each( f, function ( r ) {
           // loop the array and return a filter func for each value
-          nf.push( returnFilter( r ) );
+          nf.push( returnFilter( r, sq ) );
         });
         // now build a func to loop over the filters and return true if ANY of the filters match
         // This handles logical OR expressions
@@ -410,7 +410,7 @@ var TAFFY, exports, T;
                     ? (mtest.indexOf( mvalue[s] ) > -1) : (false)
                   );
 
-                  if ( !r && T.isObject( mtest ) ){
+                  if ( sq && !r && T.isObject( mtest ) ){
                     r = true;
                     var that = this;
 
@@ -685,9 +685,10 @@ var TAFFY, exports, T;
         nq.push( v );
       });
       nc.q = nq;
+      var that = this;
       // Hadnle passing of ___ID or a record on lookup.
       each( sortArgs(arguments), function ( f ) {
-        nc.q.push( returnFilter( f ) );
+        nc.q.push( returnFilter( f, that.context().settings.subqueries ) );
         nc.filterRaw.push( f );
       });
 
@@ -1238,6 +1239,7 @@ var TAFFY, exports, T;
           onRemove          : false,
           onDBChange        : false,
           storageName       : false,
+          subqueries        : false,
           forcePropertyCase : null,
           cacheSize         : 100,
           name              : ''
@@ -1659,7 +1661,7 @@ var TAFFY, exports, T;
             context.index.push( f );
           }
           else {
-            context.q.push( returnFilter( f ) );
+            context.q.push( returnFilter( f, context.settings.subqueries ) );
           }
           context.filterRaw.push( f );
         });
