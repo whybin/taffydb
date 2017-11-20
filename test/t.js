@@ -24,6 +24,22 @@
           "city":"Washington, D.C.","status":"Active"},
         {"id":4,"gender":"F","first":"Jennifer","last":"Gill",
           "city":"Seattle, WA","status":"Active"}
+      ],
+      subq_list : [
+        {"id":1,"nested":{"a":1,"b":2,"c":3}},
+        {"id":2,"nested":{"a":1,"b":11,"c":111}},
+        {"id":3,"nested":{"a":8,"b":16,"c":32}},
+        {"id":4,"un":{"even":{"nest":{"ing":10},"x":20},"y":30}},
+        {"id":5,"un":{"even":{"nest":{"ing":10},"x":9},"y":8}},
+        {"id":6,"un":{"even":{"nest":{"ing":0},"x":20},"y":30}},
+        {"id":7,"outbox":["a","b","c"],"wrap":{"foam":{"inbox":["a","b","c"]}}},
+        {"id":8,"outbox":["a","b"],"wrap":{"foam":{"inbox":["a","b"]}}},
+        {"id":9,"root":{"branch1":{"leaf1":1,"leaf2":2},
+          "branch2":{"leaf1":[1,2,3],"leaf2":[4,5,6]}}},
+        {"id":10,"root":{"branch1":{"leaf1":1,"leaf2":23},
+          "branch2":{"leaf1":[1,3],"leaf2":[4,6,8]}}},
+        {"id":11,"root":{"branch1":{"leaf1":2,"leaf2":3},
+          "branch2":{"leaf1":[1,2,3],"leaf2":[4,6,8]}}}
       ]
     },
     // Declare utlities
@@ -31,7 +47,7 @@
     // Declare init used to reset state for tests
 
     // Declare tests
-    testSmoke, testShowBug, testDummy
+    testSmoke, testShowBug, testSubquery, testDummy
     ;
   // END module-scope vars
 
@@ -211,6 +227,111 @@
   };
   // END testShowBug
 
+  // BEGIN testSubquery
+  testSubquery = function ( test_obj ) {
+    var subq_db, records, tests, i, actualData, expectedData, msg;
+
+    subq_db = TAFFY( cfgMap.subq_list );
+    records = subq_db().get();
+    tests = [
+      {
+        query: { id: { '!is': 2 }, nested: { a: 1 } },
+        expected: [records[0]]
+      },
+      {
+        query: { nested: { a: 1, b: 11, c: 111 } },
+        expected: [records[1]]
+      },
+      {
+        query: { nested: { a: {lt: 8} } },
+        expected: [records[0], records[1]]
+      },
+      {
+        query: { nested: { a: {lt: 8}, b: {gt: 2} } },
+        expected: [records[1]]
+      },
+      {
+        query: { nested: { b: [2, 16] } },
+        expected: [records[0], records[2]]
+      },
+      {
+        query: { un: { even: { nest: { ing: { gt: 9 } } } } },
+        expected: [records[3], records[4]]
+      },
+      {
+        query: { un: { even: { nest: { ing: { gt: 9 } }, x: [9, 20] } } },
+        expected: [records[3], records[4]]
+      },
+      {
+        query: { un: { even: { nest: { ing: { lt: 9 } } }, y: { gte: 30 } } },
+        expected: [records[5]]
+      },
+      {
+        query: { un: { even : { nest : { ing : 10 }, x : 20 }, y : 30 } },
+        expected: [records[3]]
+      },
+      {
+        query: {
+          un: { even: { nest: { ing: { '!is': 0 } },
+                        x: { '!==': 9 } },
+                y: { gte: 30 } }
+        },
+        expected: [records[3]]
+      },
+      {
+        query: { outbox: { hasAll: ['a', 'b', 'c'] } },
+        expected: [records[6]]
+      },
+      {
+        query: { wrap: { foam: { inbox: { has: [ 'a','b','c' ] } } } },
+        expected: [records[6], records[7]]
+      },
+      {
+        query: { wrap: { foam: { inbox: { hasAll: [ 'a','b','c' ] } } } },
+        expected: [records[6]]
+      },
+      {
+        query: { outbox: { hasAll: ['a', 'b', 'c'] },
+                 wrap: { foam: { inbox: { hasAll: [ 'a','b','c' ] } } } },
+        expected: [records[6]]
+      },
+      {
+        query: { root: { branch1: { leaf1: [1, 2], leaf2: [2, 23] } } },
+        expected: [records[8], records[9]]
+      },
+      {
+        query: { root: { branch2: { leaf1: { hasAll: [1, 2] },
+                                    leaf2: { hasAll: [4, 8] } } } },
+        expected: [records[10]]
+      },
+      {
+        query: { root: { branch1: { leaf1: { '!is': 1 },
+                                    leaf2: { 'is': 3 } } } },
+        expected: [records[10]]
+      },
+      {
+        query: [{ root: { branch1: { leaf1: [1, 2], leaf2: [2, 23] } } },
+                { root: { branch1: { leaf1: { '!is': 1 },
+                                     leaf2: { 'is': 3 } } } }],
+        expected: [records[8], records[9], records[10]]
+      },
+    ];
+
+    test_obj.expect( tests.length );
+
+    for ( i = 0; i < tests.length; i++ ) {
+      actualData = subq_db( tests[i].query ).get();
+      expectedData = tests[i].expected;
+      msg = JSON.stringify( actualData ) + '==='
+        + JSON.stringify( expectedData );
+
+      test_obj.deepEqual( actualData, tests[i].expected, msg );
+    }
+
+    test_obj.done();
+  };
+  // END testSubquery
+
   testDummy = function ( test_obj ) {
     test_obj.expect( 0 );
     test_obj.done();
@@ -223,7 +344,8 @@
   };
 
   module.exports = {
-    testSmoke   : testSmoke,
-    testShowBug : testShowBug,
-    testDummy   : testDummy
+    testSmoke    : testSmoke,
+    testShowBug  : testShowBug,
+    testSubquery : testSubquery,
+    testDummy    : testDummy
   };

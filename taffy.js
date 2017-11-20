@@ -35,7 +35,7 @@ var TAFFY, exports, T;
     isIndexable,  returnFilter, runFilters,
     numcharsplit, orderByCol,   run,    intersection,
     filter,       makeCid,      safeForJson,
-    isRegexp, sortArgs
+    isRegexp, sortArgs,         lookup
     ;
     
     
@@ -241,6 +241,31 @@ var TAFFY, exports, T;
       return match;
     };
 
+    lookup = function ( o, ar ) {
+      // ****************************************
+      // *
+      // * Takes: an object and an array of string keys
+      // * Returns: the nested value in the object from looking up each key.
+      // * Failures currently result in an undefined value.
+      // * Purpose: Look up deeply nested values
+      // *
+      // ****************************************
+      if ( !T.isObject( o ) ){
+        return undefined;
+      }
+
+      var s = true;
+      each( ar, function ( v ) {
+        o = o[v];
+        if ( T.isUndefined( o ) ){
+          s = false;
+          return T.EXIT;
+        }
+      });
+
+      return s ? o : undefined;
+    };
+
     returnFilter = function ( f ) {
       // ****************************************
       // *
@@ -303,85 +328,108 @@ var TAFFY, exports, T;
             // loop over each test
             looper( mtest, function ( mtest ) {
 
-              // su = match success
               // f = match false
-              var su = true, f = false, matchFunc;
+              var f = false, matchFunc, innerFunc;
 
 
               // push a function onto the filter collection to do the matching
               matchFunc = function () {
+                // Wrapping the recursive function fixes scoping issues
+                // k = key array
+                innerFunc = function ( mtest, s, k ) {
 
-                // get the value from the record
-                var
-                  mvalue   = this[i],
-                  eqeq     = '==',
-                  bangeq   = '!=',
-                  eqeqeq   = '===',
-                  lt   = '<',
-                  gt   = '>',
-                  lteq   = '<=',
-                  gteq   = '>=',
-                  bangeqeq = '!==',
-                  r
-                  ;
+                  // get the value from the record
+                  var
+                    // su = match success
+                    su       = true,
+                    mvalue   = lookup( this, k ),
+                    eqeq     = '==',
+                    bangeq   = '!=',
+                    eqeqeq   = '===',
+                    lt   = '<',
+                    gt   = '>',
+                    lteq   = '<=',
+                    gteq   = '>=',
+                    bangeqeq = '!==',
+                    r
+                    ;
 
-                if (typeof mvalue === 'undefined') {
-                  return false;
-                }
-                
-                if ( (s.indexOf( '!' ) === 0) && s !== bangeq &&
-                  s !== bangeqeq )
-                {
-                  // if the filter name starts with ! as in '!is' then reverse the match logic and remove the !
-                  su = false;
-                  s = s.substring( 1, s.length );
-                }
-                // get the match results based on the s/match type
-                /*jslint eqeq : true */
-                r = (
-                  (s === 'regex') ? (mtest.test( mvalue )) : (s === 'lt' || s === lt)
-                  ? (mvalue < mtest)  : (s === 'gt' || s === gt)
-                  ? (mvalue > mtest)  : (s === 'lte' || s === lteq)
-                  ? (mvalue <= mtest) : (s === 'gte' || s === gteq)
-                  ? (mvalue >= mtest) : (s === 'left')
-                  ? (mvalue.indexOf( mtest ) === 0) : (s === 'leftnocase')
-                  ? (mvalue.toLowerCase().indexOf( mtest.toLowerCase() )
-                    === 0) : (s === 'right')
-                  ? (mvalue.substring( (mvalue.length - mtest.length) )
-                    === mtest) : (s === 'rightnocase')
-                  ? (mvalue.toLowerCase().substring(
-                    (mvalue.length - mtest.length) ) === mtest.toLowerCase())
-                    : (s === 'like')
-                  ? (mvalue.indexOf( mtest ) >= 0) : (s === 'likenocase')
-                  ? (mvalue.toLowerCase().indexOf(mtest.toLowerCase()) >= 0)
-                    : (s === eqeqeq || s === 'is')
-                  ? (mvalue ===  mtest) : (s === eqeq)
-                  ? (mvalue == mtest) : (s === bangeqeq)
-                  ? (mvalue !==  mtest) : (s === bangeq)
-                  ? (mvalue != mtest) : (s === 'isnocase')
-                  ? (mvalue.toLowerCase
-                    ? mvalue.toLowerCase() === mtest.toLowerCase()
-                      : mvalue === mtest) : (s === 'has')
-                  ? (T.has( mvalue, mtest )) : (s === 'hasall')
-                  ? (T.hasAll( mvalue, mtest )) : (s === 'contains')
-                  ? (TAFFY.isArray(mvalue) && mvalue.indexOf(mtest) > -1) : (
-                    s.indexOf( 'is' ) === -1
-                      && !TAFFY.isNull( mvalue )
-                      && !TAFFY.isUndefined( mvalue )
-                      && !TAFFY.isObject( mtest )
-                      && !TAFFY.isArray( mtest )
-                    )
-                  ? (mtest === mvalue[s])
-                    : (T[s] && T.isFunction( T[s] )
-                    && s.indexOf( 'is' ) === 0)
-                  ? T[s]( mvalue ) === mtest
-                    : (T[s] && T.isFunction( T[s] ))
-                  ? T[s]( mvalue, mtest ) : (false)
-                );
-                /*jslint eqeq : false */
-                r = (r && !su) ? false : (!r && !su) ? true : r;
+                  if (typeof mvalue === 'undefined') {
+                    return false;
+                  }
 
-                return r;
+                  if ( (s.indexOf( '!' ) === 0) && s !== bangeq &&
+                    s !== bangeqeq )
+                  {
+                    // if the filter name starts with ! as in '!is' then reverse the match logic and remove the !
+                    su = false;
+                    s = s.substring( 1, s.length );
+                  }
+                  // get the match results based on the s/match type
+                  /*jslint eqeq : true */
+                  r = (
+                    (s === 'regex') ? (mtest.test( mvalue )) : (s === 'lt' || s === lt)
+                    ? (mvalue < mtest)  : (s === 'gt' || s === gt)
+                    ? (mvalue > mtest)  : (s === 'lte' || s === lteq)
+                    ? (mvalue <= mtest) : (s === 'gte' || s === gteq)
+                    ? (mvalue >= mtest) : (s === 'left')
+                    ? (mvalue.indexOf( mtest ) === 0) : (s === 'leftnocase')
+                    ? (mvalue.toLowerCase().indexOf( mtest.toLowerCase() )
+                      === 0) : (s === 'right')
+                    ? (mvalue.substring( (mvalue.length - mtest.length) )
+                      === mtest) : (s === 'rightnocase')
+                    ? (mvalue.toLowerCase().substring(
+                      (mvalue.length - mtest.length) ) === mtest.toLowerCase())
+                      : (s === 'like')
+                    ? (mvalue.indexOf( mtest ) >= 0) : (s === 'likenocase')
+                    ? (mvalue.toLowerCase().indexOf(mtest.toLowerCase()) >= 0)
+                      : (s === eqeqeq || s === 'is')
+                    ? (mvalue ===  mtest) : (s === eqeq)
+                    ? (mvalue == mtest) : (s === bangeqeq)
+                    ? (mvalue !==  mtest) : (s === bangeq)
+                    ? (mvalue != mtest) : (s === 'isnocase')
+                    ? (mvalue.toLowerCase
+                      ? mvalue.toLowerCase() === mtest.toLowerCase()
+                        : mvalue === mtest) : (s === 'has')
+                    ? (T.has( mvalue, mtest )) : (s === 'hasall')
+                    ? (T.hasAll( mvalue, mtest )) : (s === 'contains')
+                    ? (TAFFY.isArray(mvalue) && mvalue.indexOf(mtest) > -1) : (
+                      s.indexOf( 'is' ) === -1
+                        && !TAFFY.isNull( mvalue )
+                        && !TAFFY.isUndefined( mvalue )
+                        && !TAFFY.isObject( mtest )
+                        && !TAFFY.isArray( mtest )
+                      )
+                    ? (mtest === mvalue[s])
+                      : (T[s] && T.isFunction( T[s] )
+                      && s.indexOf( 'is' ) === 0)
+                    ? T[s]( mvalue ) === mtest
+                      : (T[s] && T.isFunction( T[s] ))
+                    ? T[s]( mvalue, mtest ) : (T.isArray( mtest ))
+                    // Logical OR
+                    ? (mtest.indexOf( mvalue[s] ) > -1) : (false)
+                  );
+
+                  if ( !r && T.isObject( mtest ) ){
+                    r = true;
+                    var that = this;
+
+                    // Recursively match subqueries
+                    eachin( mtest, function ( mtest, t ) {
+                      if ( !innerFunc.call( that, mtest, t, k.concat(s) ) ){
+                        r = false;
+                        return T.EXIT;
+                      }
+                    });
+                  }
+
+                  /*jslint eqeq : false */
+                  r = (r && !su) ? false : (!r && !su) ? true : r;
+
+                  return r;
+                };
+
+                return innerFunc.call( this, mtest, s, [i] );
               };
               c.push( matchFunc );
 
